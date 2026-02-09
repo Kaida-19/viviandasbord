@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 250px;
+      background: #2c3e50;
+      color: white;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.3s ease;
+    }
+
+    #sidebar.collapsed {
+      transform: translateX(-250px);
+    }
+
+    #sidebar h2 {
+      text-align: center;
+      margin: 20px 0;
+      font-size: 20px;
+    }
+
+    #rooms {
+      list-style: none;
+      padding: 0;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+
+    #rooms li {
+      padding: 15px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      cursor: pointer;
+    }
+
+    #rooms li:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* Main content */
+    #main {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      background: #ecf0f1;
+      position: relative;
+    }
+
+    #toggleSidebar {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: #3498db;
+      border: none;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    #chat {
+      flex-grow: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #input-area {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background: #fff;
+    }
+
+    #input-area input {
+      flex-grow: 1;
+      padding: 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      outline: none;
+    }
+
+    #input-area button {
+      margin-left: 5px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 20px;
+      background: #3498db;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #input-area button:hover {
+      background: #2980b9;
+    }
+
+    /* Chat messages */
+    .message {
+      padding: 8px 12px;
+      border-radius: 15px;
+      margin: 5px 0;
+      max-width: 70%;
+      word-wrap: break-word;
+    }
+
+    .message.admin {
+      background: #3498db;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 0;
+    }
+
+    .message.customer {
+      background: #bdc3c7;
+      align-self: flex-start;
+      border-bottom-left-radius: 0;
+    }
+
+    .timestamp {
+      font-size: 10px;
+      color: gray;
+      margin-top: 2px;
+      text-align: right;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #sidebar {
+        position: absolute;
+        height: 100%;
+        z-index: 5;
+      }
+      #toggleSidebar {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <h2>Rooms</h2>
+    <ul id="rooms"></ul>
+  </div>
+
+  <div id="main">
+    <button id="toggleSidebar">☰</button>
+    <div id="chat"></div>
+    <div id="input-area">
+      <input id="msg" placeholder="Type a message">
+      <button onclick="send()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('toggleSidebar');
+    const chat = document.getElementById('chat');
+    const roomsList = document.getElementById('rooms');
+    let room = null;
+    let ws = null;
+
+    toggleBtn.onclick = () => {
+      sidebar.classList.toggle('collapsed');
+    };
+
+    // Load rooms
+    async function loadRooms() {
+      try {
+        // const res = await fetch("http://127.0.0.1:8000/rooms");
+        const res = await fetch("https://support-chat-wpms.onrender.com/rooms");
+        const rooms = await res.json();
+        roomsList.innerHTML = '';
+        rooms.forEach(r => {
+          const li = document.createElement('li');
+          li.textContent = r;
+          li.onclick = () => joinRoom(r);
+          roomsList.appendChild(li);
+        });
+      } catch (err) {
+        console.error("Could not load rooms:", err);
+      }
+    }
+
+    // Join a room
+    function joinRoom(r) {
+      room = r;
+      chat.innerHTML = '';
+      if (ws) ws.close();
+      // ws = new WebSocket(`ws://127.0.0.1:8000/ws/${room}`);
+      ws = new WebSocket(`wss://support-chat-wpms.onrender.com/ws/${room}`);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        const div = document.createElement('div');
+        div.className = 'message ' + (msg.sender === 'admin' ? 'admin' : 'customer');
+        div.innerHTML = `${msg.content}<div class="timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+      };
+    }
+
+    // Send message
+    function send() {
+      if (!ws || !room) return alert("Select a room first!");
+      const content = document.getElementById('msg').value;
+      if (!content) return;
+      ws.send(JSON.stringify({ sender: "admin", content }));
+      document.getElementById('msg').value = '';
+    }
+
+    // Refresh rooms every 5 seconds
+    setInterval(loadRooms, 5000);
+    loadRooms();
+  </script>
+</body>
+</html>
