@@ -80,6 +80,7 @@ body {
       padding: 10px;
       border-top: 1px solid #ccc;
       background: #fff;
+      position: -webkit-sticky;
     }
 
     #input-area input {
